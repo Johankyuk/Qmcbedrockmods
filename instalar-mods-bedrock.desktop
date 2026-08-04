@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar Mods Bedrock
+Comment=Instala/actualiza los mods de Minecraft Bedrock (mcpelauncher)
+Exec=/home/kyu/.local/bin/instalar_mods_bedrock.sh
+Icon=applications-games
+Terminal=true
+Categories=Game;Utility;
