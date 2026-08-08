@@ -2,17 +2,49 @@
 
 Instala `.mcpack` / `.mcaddon` / `.mcworld` / `.zip` de Minecraft Bedrock
 (mcpelauncher, Flatpak `io.mrarm.mcpelauncher`) sin pasos manuales: tirás
-los archivos en `~/Mods` y corrés el script (o el lanzador de escritorio).
+los archivos en `~/Mods` (mods/addons/shaders) o en `~/Mundos` (mundos
+completos) y corrés el script (o el lanzador de escritorio).
 
 ## Uso
 
 ```bash
-mkdir -p ~/Mods                 # poné ahi los .mcpack/.mcaddon/.mcworld/.zip
+mkdir -p ~/Mods ~/Mundos        # Mods: .mcpack/.mcaddon/.mcworld/.zip
+                                 # Mundos: .mcworld/.zip (mundos completos)
 ~/Qmcbedrockmods/instalar_mods_bedrock.sh
 ```
 
 También disponible como lanzador de escritorio
 (`instalar-mods-bedrock.desktop`).
+
+## v5: importar mundos completos desde `~/Mundos`
+
+`~/Mods` y `~/Mundos` son carpetas separadas a propósito, no un
+descuido:
+
+- Un `.mcworld` en **`~/Mods`** se sigue tratando como en v4: solo se
+  extraen los packs (`behavior_packs`/`resource_packs`) que trae
+  embebidos. Pensado para addons que alguien distribuyó empaquetados
+  como mundo — el mundo en sí no se toca.
+- Un `.mcworld` (o `.zip`) en **`~/Mundos`** se importa como mundo
+  jugable completo a `minecraftWorlds/`.
+
+La detección de mundo válido es por `level.dat` (a diferencia de un
+addon, que tiene `manifest.json`), sin importar si el zip lo empaquetó
+con `level.dat` en la raíz o adentro de una subcarpeta con el nombre
+del mundo — ambos formatos existen en descargas reales, se buscan
+hasta 3 niveles de profundidad.
+
+Cada mundo se procesa de forma independiente (un `.mcworld` corrupto
+no frena los demás) y si ya existe un mundo con el mismo nombre de
+carpeta destino, no se pisa: se respalda como
+`<nombre>.bak.<timestamp>` antes de copiar el nuevo, para no perder
+partidas guardadas por una reimportación.
+
+Probado con: mundo con `level.dat` en la raíz del zip, mundo con
+`level.dat` en subcarpeta, extensión en mayúsculas, archivo corrupto,
+reimportación de un mundo ya existente (confirma backup), y un `.zip`
+de addon puesto por error en `~/Mundos` (se rechaza por no tener
+`level.dat`).
 
 ## v3: bugs reales que tenía v2, confirmados con casos de prueba antes de tocar nada
 
