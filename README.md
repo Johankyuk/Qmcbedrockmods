@@ -7,10 +7,31 @@ completos) y corrés el script (o el lanzador de escritorio).
 
 ## Uso
 
+### Instalar
+
 ```bash
-mkdir -p ~/Mods ~/Mundos        # Mods: .mcpack/.mcaddon/.mcworld/.zip
-                                 # Mundos: .mcworld/.zip (mundos completos)
-~/Qmcbedrockmods/instalar_mods_bedrock.sh
+git clone https://github.com/Johankyuk/Qmcbedrockmods.git ~/Qmcbedrockmods
+cd ~/Qmcbedrockmods && ./install.sh
+```
+
+`install.sh` es idempotente. Copia el script a `~/.local/bin/`, despliega el
+lanzador de escritorio con la ruta del `$HOME` real (el repo guarda el
+placeholder `HOME/`, nunca una ruta hardcodeada), crea `~/Mods` y `~/Mundos`,
+y aborta con `exit 1` si falta `unzip`, `flatpak` o el propio launcher.
+
+### Usar
+
+```bash
+# ~/Mods    -> .mcpack/.mcaddon/.zip (addons, shaders) y .mcworld (solo sus packs)
+# ~/Mundos  -> .mcworld/.zip que quieras jugar como partida completa
+~/.local/bin/instalar_mods_bedrock.sh
+```
+
+Para otro flatpak de mcpelauncher (p.ej. Trinity), ambos scripts respetan
+`LAUNCHER_APP_ID`:
+
+```bash
+LAUNCHER_APP_ID=com.trench.trinity.launcher ./install.sh
 ```
 
 También disponible como lanzador de escritorio
