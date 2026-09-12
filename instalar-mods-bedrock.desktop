@@ -2,7 +2,7 @@
 Type=Application
 Name=Instalar Mods Bedrock
 Comment=Instala/actualiza los mods de Minecraft Bedrock (mcpelauncher)
-Exec=HOME/.local/bin/instalar_mods_bedrock.sh
+Exec=sh -c 'HOME/.local/bin/instalar_mods_bedrock.sh; echo; echo "[Enter para cerrar]"; read _'
 Icon=applications-games
 Terminal=true
 Categories=Game;Utility;

@@ -34,11 +34,11 @@ APPS_DIR="$HOME/.local/share/applications"
 DESKTOP="$APPS_DIR/instalar-mods-bedrock.desktop"
 mkdir -p "$APPS_DIR" || exit 1
 cp "$REPO_DIR/instalar-mods-bedrock.desktop" "$DESKTOP" || exit 1
-sed -i "s|=HOME/|=$HOME/|g" "$DESKTOP" || exit 1
-if grep -q '=HOME/' "$DESKTOP"; then
+sed -i "s|\\bHOME/|$HOME/|g" "$DESKTOP" || exit 1
+if grep -q '\bHOME/' "$DESKTOP"; then
   echo "ERROR: placeholder HOME/ sin sustituir en $DESKTOP" >&2; exit 1
 fi
-if ! grep -q "^Exec=$HOME/.local/bin/instalar_mods_bedrock.sh$" "$DESKTOP"; then
+if ! grep -q "^Exec=.*$HOME/.local/bin/instalar_mods_bedrock.sh" "$DESKTOP"; then
   echo "ERROR: el Exec desplegado no apunta al script esperado" >&2
   grep '^Exec=' "$DESKTOP" >&2; exit 1
 fi
