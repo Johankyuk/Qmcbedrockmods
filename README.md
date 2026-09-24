@@ -39,7 +39,7 @@ También disponible como lanzador de escritorio
 
 ## v6: shaders RenderDragon integrados (fusión con NewbQ)
 
-Ya no hace falta el wizard de [NewbQ](https://github.com/Johankyuk/NewbQ):
+Ya no hace falta el wizard aparte (NewbQ, descartado):
 un shader se tira en `~/Mods` como cualquier otro pack. Si el pack trae
 `renderer/materials/*.material.bin` en su raíz, el script además:
 
