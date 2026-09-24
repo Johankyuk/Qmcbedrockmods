@@ -191,7 +191,7 @@ asegurar_shadersmod() {
         rm -rf "$tmp"
         return
     fi
-    if ! unzip -oq "$tmp/mod.zip" -d "$tmp/x" 2>/dev/null; then
+    if ! desempacar "$tmp/mod.zip" "$tmp/x" 2>/dev/null; then
         echo "  ✗ [loader] el zip descargado esta corrupto."
         rm -rf "$tmp"
         return
@@ -222,6 +222,30 @@ instalar_materials() {
     cp "$src"/*.material.bin "$SHADERS_DIR"/
     n=$(find "$src" -maxdepth 1 -name '*.material.bin' | wc -l)
     echo "  -> [shader] $n archivo(s) .material.bin copiados planos a: $SHADERS_DIR"
+}
+
+# Descomprime $1 en $2. unzip devuelve 1 en simples advertencias (p.ej.
+# zips armados en Windows con "\" como separador): eso NO es un fallo,
+# los archivos quedan extraidos igual. Solo >1 es error real. Despues se
+# da permiso de escritura al usuario sobre todo lo extraido: hay packs
+# que traen archivos/carpetas de solo lectura dentro del zip, y sin esto
+# el rm -rf del temporal falla (basura en /tmp) y los packs copiados
+# quedan de solo lectura en resource_packs/.
+desempacar() {
+    local rc
+    unzip -oq "$1" -d "$2"
+    rc=$?
+    chmod -R u+rwX "$2" 2>/dev/null
+    # Algunas versiones de unzip no convierten "\" y dejan archivos
+    # llamados literalmente 'RP\manifest.json': se rearman como rutas.
+    local f rel
+    while IFS= read -r -d '' f; do
+        rel="${f#"$2"/}"
+        rel="${rel//\\//}"
+        mkdir -p "$2/$(dirname "$rel")"
+        mv -f "$f" "$2/$rel"
+    done < <(find "$2" -depth -name '*\\*' -type f -print0)
+    [ "$rc" -le 1 ]
 }
 
 if ! command -v unzip &> /dev/null; then
@@ -259,7 +283,7 @@ for file in "${files[@]}"; do
 
     tmpdir=$(mktemp -d)
 
-    if ! unzip -oq "$file" -d "$tmpdir" 2>/tmp/unzip-err-$$; then
+    if ! desempacar "$file" "$tmpdir" 2>/tmp/unzip-err-$$; then
         echo "  ✗ ERROR: '$name' no es un zip valido (descarga incompleta o corrupta) -- SE SALTEA, sigo con el resto."
         sed 's/^/    /' /tmp/unzip-err-$$
         rm -f /tmp/unzip-err-$$
@@ -277,7 +301,7 @@ for file in "${files[@]}"; do
             [ -z "$nfile" ] && continue
             ndir="${nfile%.*}_extracted"
             mkdir -p "$ndir"
-            if ! unzip -oq "$nfile" -d "$ndir" 2>/dev/null; then
+            if ! desempacar "$nfile" "$ndir" 2>/dev/null; then
                 echo "    (aviso: no pude abrir un archivo anidado dentro de $name, lo ignoro)"
             fi
             rm -f "$nfile"
@@ -365,7 +389,7 @@ else
 
         tmpdir=$(mktemp -d)
 
-        if ! unzip -oq "$file" -d "$tmpdir" 2>/tmp/unzip-world-err-$$; then
+        if ! desempacar "$file" "$tmpdir" 2>/tmp/unzip-world-err-$$; then
             echo "  ✗ ERROR: '$name' no es un zip valido (descarga incompleta o corrupta) -- SE SALTEA, sigo con el resto."
             sed 's/^/    /' /tmp/unzip-world-err-$$
             rm -f /tmp/unzip-world-err-$$
