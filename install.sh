@@ -51,13 +51,13 @@ echo "== Carpetas de entrada =="
 mkdir -p "$HOME/Mods" "$HOME/Mundos" || exit 1
 
 echo "== Shaders (opcional) =="
+# Desde v6 el loader se baja solo la primera vez que se instala un shader;
+# aca solo se informa el estado.
 SHADERSMOD="$HOME/.var/app/$LAUNCHER_APP_ID/data/mcpelauncher/mods/libmcpelaunchershadersmod.so"
 if [ -f "$SHADERSMOD" ]; then
   echo "shadersmod presente."
 else
-  echo "AVISO: falta libmcpelaunchershadersmod.so en mods/."
-  echo "       Los shaders RenderDragon no van a cargar hasta instalarlo a mano:"
-  echo "       github.com/GameParrot/mcpelauncher-shadersmod"
+  echo "shadersmod aun no instalado: se baja automaticamente al instalar el primer shader."
 fi
 
 echo ""

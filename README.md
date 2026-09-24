@@ -37,6 +37,46 @@ LAUNCHER_APP_ID=com.trench.trinity.launcher ./install.sh
 También disponible como lanzador de escritorio
 (`instalar-mods-bedrock.desktop`).
 
+## v6: shaders RenderDragon integrados (fusión con NewbQ)
+
+Ya no hace falta el wizard de [NewbQ](https://github.com/Johankyuk/NewbQ):
+un shader se tira en `~/Mods` como cualquier otro pack. Si el pack trae
+`renderer/materials/*.material.bin` en su raíz, el script además:
+
+1. **Loader:** si falta `mods/libmcpelaunchershadersmod.so`, lo baja una
+   sola vez de
+   [GameParrot/mcpelauncher-shadersmod](https://github.com/GameParrot/mcpelauncher-shadersmod)
+   (asset exacto según `uname -m`: x86_64, x86, arm64-v8a, armeabi-v7a) y
+   lo deja **plano** en `mods/`. Si estaba en una subcarpeta de `mods/`
+   (donde el juego no lo carga), lo sube a la raíz.
+2. **Materials:** mueve a respaldo los `.material.bin` del shader
+   anterior y copia planos a `shaders/` solo los de la raíz de
+   `renderer/materials/` (nunca `subpacks/`). Nunca quedan dos shaders
+   mezclados.
+3. **Resource pack:** el pack completo se importa como siempre (texturas,
+   biomes, fogs).
+
+No se usa `CrackedMatter/mcpelauncher-materialbinloader`: hookea lo mismo
+que shadersmod y se pisan. Si aparece en `mods/`, solo se avisa.
+
+Después, en el juego: Configuración → Almacenamiento → Recursos globales →
+activar el shader, subirlo **arriba de todo**, cerrar el juego por completo
+y reabrir.
+
+### Reinstalar sin duplicados (todos los packs)
+
+Antes de copiar un pack se busca por el `uuid` del `header` de su
+`manifest.json` si ya hay una versión instalada, aunque su carpeta tenga
+otro nombre. Si la hay, se mueve a
+`<data_root>/qmc-respaldos/<fecha>/` — ya no aparece dos veces en
+Recursos globales. Nada se borra.
+
+### Data root autodetectado
+
+En orden: Flatpak oficial (`io.mrarm.mcpelauncher`), Trinity
+(`com.trench.trinity.launcher`), nativo (`~/.local/share/mcpelauncher`).
+Forzar uno: `LAUNCHER_APP_ID=...` o `DATA_ROOT=/ruta/a/mcpelauncher`.
+
 ## v5: importar mundos completos desde `~/Mundos`
 
 `~/Mods` y `~/Mundos` son carpetas separadas a propósito, no un
@@ -114,7 +154,5 @@ y el corrupto se saltea sin frenar el resto.
 
 - Detección de dependencias entre packs (`dependencies` en el
   manifest) — no se valida, se instala igual.
-- Actualizar un pack ya instalado a una versión nueva no lo desinstala
-  primero (si cambiás el nombre de carpeta del addon entre versiones,
-  puede quedar la vieja instalada en paralelo). No detectado como bug
-  real todavía, solo una limitación conocida.
+- Subpacks de shaders (`no_fog`, `no_wave`, etc.): no hay selector en
+  este método de carpeta plana, se instala la variante base.
