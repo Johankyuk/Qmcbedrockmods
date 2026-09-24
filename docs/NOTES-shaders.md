@@ -94,12 +94,7 @@ casi idénticos. Verificar con `ls | grep -i shadersmod` antes de descomprimir.
 
 ## Repo
 
-`github.com/Johankyuk/NewbQ` — wizard que automatiza todo lo de arriba.
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Johankyuk/NewbQ/main/instalar_shaders_bedrock.sh)
-```
-
-Repo hermano para mods normales (no shaders): `github.com/Johankyuk/Qmcbedrockmods`.
+NewbQ fue descartado; su lógica vive en `instalar_mods_bedrock.sh` v6 (ver README).
 
 ## Pendiente / no verificado
 
