@@ -56,6 +56,22 @@ un shader se tira en `~/Mods` como cualquier otro pack. Si el pack trae
 3. **Resource pack:** el pack completo se importa como siempre (texturas,
    biomes, fogs).
 
+**Cambio de shader con confirmación:** si ya hay un shader activo y el
+pack nuevo es otro, antes de copiar nada el script pregunta:
+
+```
+  ¿Cambiar de shader?
+    Activo ahora: Newb Aero
+    Nuevo:        Newb Classic  (newb-classic.mcpack)
+  Usar el nuevo? [s/N]:
+```
+
+Con `N` (default) el pack nuevo se omite entero y el activo queda
+intacto. Reinstalar el mismo shader no pregunta. Sin terminal (p.ej.
+corrido desde otro script) se conserva el activo. El nombre del activo
+se guarda en `shaders/.qmc-shader-activo`; si falta, se deduce
+comparando `shaders/` contra los resource packs instalados.
+
 No se usa `CrackedMatter/mcpelauncher-materialbinloader`: hookea lo mismo
 que shadersmod y se pisan. Si aparece en `mods/`, solo se avisa.
 

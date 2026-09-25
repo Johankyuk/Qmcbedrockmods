@@ -122,11 +122,20 @@ retirar_previos() {
         else
             continue
         fi
-        local sub
+        local sub dst i=1
         sub=$(basename "$(dirname "$d")")
         mkdir -p "$BACKUP_DIR/$sub"
-        if mv "$d" "$BACKUP_DIR/$sub/" 2>/dev/null; then
+        # Nombre unico dentro del respaldo: en una misma corrida el mismo
+        # nombre puede respaldarse mas de una vez.
+        dst="$BACKUP_DIR/$sub/$(basename "$d")"
+        while [ -e "$dst" ]; do
+            dst="$BACKUP_DIR/$sub/$(basename "$d").$i"
+            i=$((i + 1))
+        done
+        if mv "$d" "$dst"; then
             echo "  (version previa '$(basename "$d")' movida a respaldo: $BACKUP_DIR/$sub/)"
+        else
+            echo "  ! No pude mover '$(basename "$d")' a respaldo: puede quedar duplicado."
         fi
     done
 }
@@ -214,14 +223,93 @@ asegurar_shadersmod() {
 instalar_materials() {
     local src="$1" n
     mkdir -p "$SHADERS_DIR"
+    if compgen -G "$SHADERS_DIR/*.material.bin" > /dev/null && mismo_shader "$src"; then
+        printf '%s\n' "$2" > "$SHADER_MARCA"
+        echo "  -> [shader] '$2' ya era el shader activo, sin cambios en: $SHADERS_DIR"
+        return
+    fi
     if compgen -G "$SHADERS_DIR/*.material.bin" > /dev/null; then
         mkdir -p "$BACKUP_DIR/shaders"
         mv -f "$SHADERS_DIR"/*.material.bin "$BACKUP_DIR/shaders/"
         echo "  (materials del shader anterior movidos a respaldo: $BACKUP_DIR/shaders/)"
     fi
     cp "$src"/*.material.bin "$SHADERS_DIR"/
+    printf '%s\n' "$2" > "$SHADER_MARCA"
     n=$(find "$src" -maxdepth 1 -name '*.material.bin' | wc -l)
     echo "  -> [shader] $n archivo(s) .material.bin copiados planos a: $SHADERS_DIR"
+}
+
+# Archivo marcador en shaders/ con el nombre del shader activo (lo
+# escribe este script al instalar uno). Empieza con punto: el loader solo
+# lee *.material.bin, no le afecta.
+SHADER_MARCA="$SHADERS_DIR/.qmc-shader-activo"
+
+# Nombre visible de un pack: "name" del header del manifest sin codigos
+# de color (§x). Si es una clave de traduccion (pack.name) o no hay, usa
+# el segundo argumento como respaldo.
+nombre_pack() {
+    local n
+    n=$(tr -d '\n\r' < "$1" | grep -o '"header"[^}]*' | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')
+    n=$(printf '%s' "$n" | sed 's/§.//g; s/\\u00[aA]7.//g; s/pack\.name//g; s/^[[:space:]]*//; s/[[:space:]]*$//')
+    [ -z "$n" ] && n="$2"
+    printf '%s' "$n"
+}
+
+# Nombre del shader activo en shaders/, o vacio si no hay ninguno. Usa el
+# marcador; si no existe (instalado antes de v6.1 o a mano), busca que
+# resource pack instalado tiene exactamente esos materials.
+shader_activo() {
+    compgen -G "$SHADERS_DIR/*.material.bin" > /dev/null || return
+    if [ -s "$SHADER_MARCA" ]; then
+        head -n 1 "$SHADER_MARCA"
+        return
+    fi
+    local d m f
+    for d in "$RES_DIR"/*/; do
+        m="${d}renderer/materials"
+        f=$(find "$m" -maxdepth 1 -name '*.material.bin' 2>/dev/null | head -n 1)
+        [ -n "$f" ] || continue
+        if cmp -s "$f" "$SHADERS_DIR/$(basename "$f")"; then
+            if [ -f "${d}manifest.json" ]; then
+                nombre_pack "${d}manifest.json" "$(basename "$d")"
+            else
+                basename "$d"
+            fi
+            return
+        fi
+    done
+    echo "desconocido ($(find "$SHADERS_DIR" -maxdepth 1 -name '*.material.bin' | wc -l) materials)"
+}
+
+# 0 si los materials de $1 ya son exactamente los activos (reinstalar el
+# mismo shader no pregunta nada).
+mismo_shader() {
+    local f n=0
+    for f in "$1"/*.material.bin; do
+        cmp -s "$f" "$SHADERS_DIR/$(basename "$f")" || return 1
+        n=$((n + 1))
+    done
+    [ "$n" -eq "$(find "$SHADERS_DIR" -maxdepth 1 -name '*.material.bin' | wc -l)" ]
+}
+
+# Pregunta si reemplazar el shader activo por el nuevo. 0 = usar el
+# nuevo. La pregunta va directo a /dev/tty: el stdin del bucle es la
+# lista de manifests y el stdout puede estar filtrado por un grep. Sin
+# terminal no se puede preguntar: se conserva el activo y se avisa.
+confirmar_shader() {
+    local activo="$1" nuevo="$2" archivo="$3" r
+    if ! { : > /dev/tty; } 2>/dev/null; then
+        echo "  ! Hay un shader activo ('$activo') y no hay terminal para preguntar: se conserva y '$archivo' se omite."
+        return 1
+    fi
+    {
+        echo ""
+        echo "  ¿Cambiar de shader?"
+        echo "    Activo ahora: $activo"
+        echo "    Nuevo:        $nuevo  ($archivo)"
+    } > /dev/tty
+    read -r -p "  Usar el nuevo? [s/N]: " r < /dev/tty 2> /dev/tty
+    [[ "$r" =~ ^[sSyY] ]]
 }
 
 # Descomprime $1 en $2. unzip devuelve 1 en simples advertencias (p.ej.
@@ -270,6 +358,7 @@ fi
 ok_count=0
 fail_count=0
 shader_count=0
+skip_count=0
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "No se encontraron archivos .mcpack/.mcaddon/.mcworld/.zip en $SRC_DIR (se saltea esta parte)."
@@ -318,6 +407,7 @@ for file in "${files[@]}"; do
     fi
 
     installed_any=0
+    skipped_any=0
     while IFS= read -r manifest; do
         packdir=$(dirname "$manifest")
         inner_name=$(basename "$packdir")
@@ -346,22 +436,36 @@ for file in "${files[@]}"; do
             type="desconocido (asumido resource)"
         fi
 
+        # Shader RenderDragon: renderer/materials/*.material.bin en la
+        # raiz de ESTE pack (subpacks/ se ignora a proposito). Si ya hay
+        # otro shader activo se pregunta ANTES de copiar nada: si se
+        # conserva el activo, este pack se omite entero (un fork con el
+        # mismo UUID si no mandaria a respaldo el pack del shader activo).
+        shader_src="$packdir/renderer/materials"
+        es_shader=0
+        if [ -d "$shader_src" ] && compgen -G "$shader_src"/*.material.bin > /dev/null; then
+            es_shader=1
+            shader_nombre=$(nombre_pack "$manifest" "$pack_name")
+            activo=$(shader_activo)
+            if [ -n "$activo" ] && ! mismo_shader "$shader_src"; then
+                if ! confirmar_shader "$activo" "$shader_nombre" "$name"; then
+                    echo "  -> [shader] se conserva '$activo'; '$shader_nombre' se omite (no se instalo nada de este pack)."
+                    skipped_any=1
+                    continue
+                fi
+                echo "  -> [shader] cambiando '$activo' por '$shader_nombre'."
+            fi
+        fi
+
         retirar_previos "$(pack_uuid "$manifest")" "$dest"
         mkdir -p "$dest"
         cp -r "$packdir"/. "$dest"/
         echo "  -> [$type] copiado a: $dest"
         installed_any=1
 
-        # Shader RenderDragon: renderer/materials/*.material.bin en la
-        # raiz de ESTE pack (subpacks/ se ignora a proposito). Ademas del
-        # import normal de arriba necesita loader + materials planos.
-        shader_src="$packdir/renderer/materials"
-        if [ -d "$shader_src" ] && compgen -G "$shader_src"/*.material.bin > /dev/null; then
-            if [ "$shader_count" -gt 0 ]; then
-                echo "  ! Aviso: otro shader en la misma corrida -- este reemplaza al anterior en shaders/."
-            fi
+        if [ "$es_shader" = 1 ]; then
             asegurar_shadersmod
-            instalar_materials "$shader_src"
+            instalar_materials "$shader_src" "$shader_nombre"
             shader_count=$((shader_count + 1))
         fi
     done <<< "$manifests"
@@ -369,6 +473,8 @@ for file in "${files[@]}"; do
     rm -rf "$tmpdir"
     if [ "$installed_any" = 1 ]; then
         ok_count=$((ok_count + 1))
+    elif [ "$skipped_any" = 1 ]; then
+        skip_count=$((skip_count + 1))
     else
         fail_count=$((fail_count + 1))
     fi
@@ -429,8 +535,11 @@ fi
 
 echo ""
 echo "Listo: $ok_count archivo(s) instalado(s), $fail_count con problemas (ver avisos arriba)."
+if [ "$skip_count" -gt 0 ]; then
+    echo "$skip_count shader(s) omitido(s) por elegir conservar el activo."
+fi
 if [ "$shader_count" -gt 0 ]; then
-    echo "$shader_count pack(s) con shader RenderDragon."
+    echo "$shader_count pack(s) con shader RenderDragon. Activo: $(shader_activo)"
     if [ "$shadersmod_ok" = 1 ]; then
         echo "  Loader OK. En el juego: Configuracion -> Almacenamiento -> Recursos globales,"
         echo "  activa el pack del shader y subilo ARRIBA DE TODO."
